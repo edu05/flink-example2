@@ -55,11 +55,19 @@ public class AppWithKafka3 {
                 .setValueOnlyDeserializer(new SimpleStringSchema())
                 .build();
 
+        FileSource<String> fileSource =
+                FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path("/Users/edu/dev/projects/quickstart/src/main/resources/fichero.txt")).build();
+
+        HybridSource<String> hybridSource =
+                HybridSource.builder(fileSource)
+                        .addSource(kafkaSource)
+                        .build();
+
         WatermarkStrategy<String> watermarkStrategy = WatermarkStrategy.<String>forMonotonousTimestamps();
         watermarkStrategy.withTimestampAssigner((event, timestamp) -> Instant.now().toEpochMilli());
         watermarkStrategy.withIdleness(Duration.ofSeconds(10));
 
-        env.fromSource(kafkaSource, watermarkStrategy, "paco", Types.STRING)
+        env.fromSource(hybridSource, watermarkStrategy, "paco", Types.STRING)
                 .map(s -> objectMapper.readValue(s, TimestampedWord.class))
                 .keyBy(TimestampedWord::getWord)
                 .process(new TimestampedWordCountingFunction())
